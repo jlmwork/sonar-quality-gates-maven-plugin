@@ -24,6 +24,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertThat;
 
 public class SonarQualityGatesMojoTest {
@@ -61,8 +63,11 @@ public class SonarQualityGatesMojoTest {
 
     @Test
     public void redEvent() throws Exception {
-        exception.expect(MojoExecutionException.class);
-        exception.expectMessage("Critical issues != 0, Coverage < 75");
+        exception.expect(MojoFailureException.class);
+        exception.expectMessage(containsString("new_coverage"));
+        exception.expectMessage(containsString("new_blocker_violations"));
+        exception.expectMessage(containsString("new_critical_violations"));
+        // "Critical issues != 0, Coverage < 75");
 
         try {
             sonarEventHandler.setResponse(200, getResponse("red.json"));
@@ -73,16 +78,9 @@ public class SonarQualityGatesMojoTest {
     }
 
     @Test
-    public void recoveredEvent() throws MojoFailureException, MojoExecutionException {
-        sonarEventHandler.setResponse(200, getResponse("recovered.json"));
+    public void passedGate() throws MojoFailureException, MojoExecutionException {
+        sonarEventHandler.setResponse(200, getResponse("passed.json"));
 
-        mojo.execute();
-
-        assertThat(sonarEventHandler.getResource(), is("nl.slam-it.maven:test-sonar-quality-gates-maven-plugin"));
-    }
-
-    @Test
-    public void noEvents() throws MojoFailureException, MojoExecutionException {
         mojo.execute();
 
         assertThat(sonarEventHandler.getResource(), is("nl.slam-it.maven:test-sonar-quality-gates-maven-plugin"));
@@ -90,6 +88,7 @@ public class SonarQualityGatesMojoTest {
 
     @Test
     public void sonarProjectKeyProperty() throws MojoFailureException, MojoExecutionException {
+        sonarEventHandler.setResponse(200, getResponse("passed.json"));
         project.getProperties().put("sonar.projectKey", "nl.slam-it.maven:test-property");
 
         mojo.execute();
@@ -100,7 +99,7 @@ public class SonarQualityGatesMojoTest {
     @Test
     public void error() throws Exception {
         exception.expect(MojoFailureException.class);
-        exception.expectMessage("Sonar responded with an error message: Resource not found: nl.slam-it.foo:no-existing-project");
+        exception.expectMessage(startsWith("Sonar responded with an error message:"));
 
         try {
             sonarEventHandler.setResponse(404, getResponse("error.json"));
@@ -113,7 +112,7 @@ public class SonarQualityGatesMojoTest {
     @Test
     public void unirestException() throws MojoFailureException, MojoExecutionException {
         exception.expect(MojoFailureException.class);
-        exception.expectMessage("Could not execute sonar-quality-gates-plugin");
+        // exception.expectMessage("Could not execute sonar-quality-gates-plugin");
 
         Unirest.setHttpClient(null);
 
@@ -125,7 +124,7 @@ public class SonarQualityGatesMojoTest {
     }
 
     private static final class SonarEventHandler implements HttpHandler {
-        private static final Pattern RESOURCE_PATTERN = Pattern.compile("^.*resource=(.*)$");
+        private static final Pattern RESOURCE_PATTERN = Pattern.compile("^.*projectKey=(.*)$");
 
         private String response = "[]";
         private String resource = "";
